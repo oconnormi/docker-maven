@@ -1,0 +1,61 @@
+#!/bin/bash
+
+_drm_dir=$HOME/.drm
+_id=$(uuidgen)
+_project_dir=$_drm_dir/$_id/
+_internal_m2=/m2
+_archive=$_project_dir/repo.tar.gz
+_local_m2=$HOME/.m2
+_internal_arch_dest=/repo/repo.tar.gz
+_image=oconnormi/alpine-maven:latest
+_shared_m2=true
+_network=""
+_docker_run_args="--rm -it -v $_archive:$_internal_arch_dest"
+
+function init-props() {
+  if [ "$_shared_m2" = "true" ]; then
+    _docker_run_args+=" -v $_local_m2:$_internal_m2"
+  fi
+  if [ ! -z $_network ]; then
+    _docker_run_args+=" --network=$_network"
+  fi
+}
+
+function main() {
+  init-props
+
+  echo "Project Dir: $_project_dir"
+
+  mkdir -p $_project_dir
+
+  git archive -o $_archive HEAD
+  docker run $_docker_run_args $_image "$@"
+}
+
+function usage() {
+  echo -e "Executes a Maven build inside a container\n"
+  echo -e "Usage: drm [-n [network] [--no-m2] [--help]] <maven-args>"
+  echo -e "\t\t--help\tDisplays this message."
+  echo -e "\t-n | --network\tSets docker network to attach the container to"
+  echo -e "\t\t--no-m2\tDisables sharing of local m2 directory with the maven container"
+}
+
+while [ "$1" != "" ]; do
+  case $1 in
+    -n | --network )
+      shift
+      _network=$1
+    ;;
+    --no-m2)
+      _shared_m2=false
+    ;;
+    -h | --help )
+      usage
+      exit
+    ;;
+    * )
+    main $@
+    break
+  esac
+  shift
+done
